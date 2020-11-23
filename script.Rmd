@@ -1,0 +1,153 @@
+---
+title: "Seguretat i valoració del servei policial"
+author: "Iman El Kabiri Ouarqui"
+date: "23/11/2020"
+output: 
+  pdf_document: 
+    keep_tex: yes
+---
+```{r}
+setwd("C:/Users/imane/OneDrive/UNIVERSITAT/3r curso/1r Semestre/Policia y seguretat/Informe1")
+dades <- read.csv("pers_norecod.csv")
+```
+
+En aquesta base de dades `dades`hi consten 4734 observacions que corresponen a les persones entrevistades en l'enquesta de victimització de Barcelona.
+
+L'objectiu que té aquest script és intentar analitzar la relació que hi ha entre la percepció que hi ha de seguretat a barcelona en relació a la valoració que es fa del servei policial. 
+
+Per obtenir la varaible sobre la valoració que es fa a la policia crearem un índex o indicador, que consistirà en la mitjana de valoració dels Mossos d'Esquadra i la valoració de la Guardia Urbana, d'aquesta manera obtindrem una valoració global que es fa a la policia que dóna servei a la ciutat de Barcelona.
+
+```{r}
+dades$VAL_GUB <- car::recode(dades$VAL_GUB, ' 98:99 = NA ', as.factor=F)
+dades$VAL_MOSSOS <- car::recode(dades$VAL_MOSSOS, ' 98:99 = NA ', as.factor=F)
+```
+
+```{r}
+dades$globalval <- (dades$VAL_GUB + dades$VAL_MOSSOS)/2
+```
+
+```{r}
+library(dplyr)
+library(kableExtra)
+round(t(as.matrix(summary(dades$globalval))),2) %>% kable(.) %>% 
+  kable_styling(full_width = F) %>% 
+   footnote(general = 
+    "Valoració global del servei policial a Barcelona")
+```
+
+En quant a la valoració del servei policial veiem que la mitjana és de 6.45, també podem observar que un 25% dels que responen puntuen amb un 5 o suspenen la valoració del servei que fan els policies a Barcelona. 
+
+L'objectiu d'aquest petit treball és doncs analitzar la relació que hi ha entre aquest indicador de valoració del servei policial i de la percepció que té la ciutadania sobre la seguretat. 
+
+En quant a la variable sobre la percepció de seguretat també es farà un indicador de seguretat que tingui en compte tant la seguretat que es percep a nivell de barri i la que es percep en general a la ciutat de Barcelona:
+```{r}
+dades$VAL_SEGUR <- car::recode(dades$VAL_SEGUR, ' 98:99 = NA ', as.factor=F)
+dades$VAL_SEGUR_BARRI <- car::recode(dades$VAL_SEGUR_BARRI, ' 98:99 = NA ', as.factor=F)
+```
+
+```{r}
+dades$globalperc <- (dades$VAL_SEGUR + dades$VAL_SEGUR_BARRI)/2
+```
+
+```{r}
+round(t(as.matrix(summary(dades$globalperc))),2) %>% kable(.) %>% 
+  kable_styling(full_width = F) %>% 
+   footnote(general = 
+    "Percepció global de la seguretat a Barcelona")
+```
+En quant a la percepció que es té sobre la seguretat, de manera global, podem dir que la mitjana és bastant baixa, un 5.5 aproximadament. Una qüestió important és que hi ha un 25% dels enquestats que suspenen la percepció de seguretat amb un 4 o menys.
+
+A continuació es farà un petit anàlisi de la chi2 per poder observar la relació que hi ha entre aquestes dues variables. Veurem si la valoració que es té de la policia depen de la percepció de seguretat.
+
+Cal especificar que les variables seran agrupades per crear una taula de contingència, de manera que la distribució quedaria de la següent manera:
+
+- `Suspès`: Si s'ha puntuat del 0 al 4.5
+- `Aprovat`: Si s'ha puntuat del 5 al 7
+- `Excel·lent`: Si s'ha puntuat del 8 al 10
+
+```{r}
+dades$globalperc1 <- as.factor(dades$globalperc)
+dades$globalval1 <- as.factor(dades$globalval)
+```
+```{r}
+levels(dades$globalperc1) <- c(rep("Suspès",10), rep("Aprovat",6), rep("Excel·lent", 5))
+levels(dades$globalval1) <- c(rep("Suspès",10), rep("Aprovat",6), rep("Excel·lent", 5))
+```
+
+
+
+```{r warning=F, message=F}
+table1 <- descr::CrossTable(dades$globalperc1, dades$globalval1, 
+                  prop.c = F, prop.t = F, prop.chisq = F,
+                  expected = T, chisq = T, asresid = T) 
+
+# Les condicions d'aplicació (freqüències esperades majors a 5) es cumpleixin, per tant, s'ha de portar a térme el test de la Chi2 sense fer cap canvi en les variables.
+
+library(dplyr) 
+
+kableExtra::kable(round(table1[["prop.row"]],3)*100, caption = "Valoració de la funció policial \n tenint en compte la percepció de seguretat (%)") %>%
+  kable_styling(c("hover", "striped", "condensed"), full_width = F) %>%
+ column_spec(1, bold = T, border_right = F)%>%
+footnote(general = "Percentatges per files")%>%
+  add_header_above(c("Percepció de la seguretat " = 1, "Valoració funció policial" = 3))
+
+```
+```{r}
+chi <- table1[["CST"]]
+res <- chi[["stdres"]]
+
+kableExtra::kable(round(res,3), caption = "Residus per cel·les \n del test de la Chi2") %>%
+  kable_styling(c("hover", "striped", "condensed"), full_width = F) %>%
+ column_spec(1, bold = T, border_right = F)%>%
+  add_header_above(c("Percepció de la seguretat " = 1, "Valoració funció policial" = 3))
+```
+
+A partir d'aquestes taules podem explicar la relació que hi ha entre aquestes dues variables i extreure'n unes conclusions:
+
+- De les persones que suspenen la percepció de seguretat, també suspenen la valoració que tenen de la funció policial. Exactament, aproximadament un 37% de les persones que suspenen la percepció de seguretat suspenen també la valoració de la funció policial. Si ens fixem en els residus per aquesta cel·la podem observar que, com el residu és major a 1.96 (21.7) i, a més, és positiu, podem assegurar amb un 95% de confiança que s'ha obtingut un nombre més elevat del que s'esperaria si aquestes dues variables no s'influenciessin entre sí. 
+
+- De la mateixa manera, un 71.1% de les persones que valoren amb un excel·lent la percepció de la seguretat també valoren amb un excel·lent la funció policial dels cossos i forces de seguretat de Barcelona. Si mirem el residu per aquesta mateixa cel·la (20.62) podem assegurar amb un 95% de conffiança que s'ha obtingut un número més elevat del que s'esperaria si no hi haguès una relació entre aquestes dues variables.
+
+Així podriem anar interpretant cel·la per cel·la però, en conclusió, arribariem a que hi ha una relació entre aquestes dues variables i la relació existeix en el sentit que com millor es percebi la percepció subjectiva, millor es valorarà a la policia. 
+
+Així ho demostra també, l'anàlisi global de la relació entre les dues variables:
+```{r}
+chi 
+```
+Podem assegurar amb un 95% de confiança i un p-valor <0.05 que hi ha una relació entre aquestes dues variables, o el que és el mateix, una variable està influenciant l'altre en el sentit explicat a l'apartat anterior.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
